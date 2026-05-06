@@ -51,17 +51,9 @@ export default function Bookshelf({ books, showOwnerFilter = true, isOwner = fal
         if (!cancelled) {
           // Map API shape → the Book shape the rest of the UI expects
           const mapped = results.map((r) => ({
-            id: String(r.id),
-            title: r.title,
-            author: r.author,
-            condition: r.condition,
-            description: r.description,
-            available: r.available,
-            exchangeType: r.exchange_type,
-            coverImageUrl: r.cover_image_url,
-            spineColor: "#6B1D2A",
-            owner: { id: String(r.owner_id), displayName: "—", email: "" },
-            checkouts: [],
+            ...r,
+            spineColor: r.spineColor ?? "#6B1D2A",
+            checkouts: r.checkouts ?? [],
           })) as Book[];
           setApiSearchResults(mapped);
         }
