@@ -41,9 +41,9 @@ export default function LampHero({ className }: { className?: string }) {
           className="py-2 text-center text-4xl md:text-6xl"
           style={{ fontFamily: "'Nunito', system-ui, sans-serif", fontWeight: 600, letterSpacing: "-0.01em", color: "#FFFCF5" }}
         >
-          Settle in with
+          Share your books
           <br />
-          a bud&apos;s book.
+          with your buds.
         </motion.h1>
       </div>
     </div>
