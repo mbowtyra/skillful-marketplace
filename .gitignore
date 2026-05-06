@@ -55,3 +55,8 @@ htmlcov/
 
 # Supabase
 supabase/.temp
+
+# Local SQLite database (use Supabase/Postgres in production)
+api/*.db
+api/*.db-shm
+api/*.db-wal

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Marbled Endpaper – Drag Through Water</title>
+<style>
+  * { margin: 0; padding: 0; }
+  body { background: #000; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
+  #ui {
+    position: fixed; bottom: 20px; right: 20px; z-index: 10;
+    display: flex; gap: 8px;
+  }
+  #ui button {
+    background: rgba(0,0,0,0.6); color: #f5f0e6;
+    border: 1px solid rgba(245,240,230,0.3); border-radius: 8px;
+    padding: 8px 18px; font: 13px/1 sans-serif;
+    letter-spacing: 0.05em; cursor: pointer;
+    backdrop-filter: blur(6px);
+  }
+  #ui button:hover { background: rgba(0,0,0,0.8); }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <button id="reset-btn">Reset</button>
+  <button id="pause-btn">Pause</button>
+</div>
+<script>
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { alpha: false, antialias: false });
+
+// --- Displacement buffer (offscreen 2D canvas) ---
+const DISP_SIZE = 512;
+const dispCanvas = document.createElement('canvas');
+dispCanvas.width = DISP_SIZE;
+dispCanvas.height = DISP_SIZE;
+const dc = dispCanvas.getContext('2d');
+dc.fillStyle = 'rgb(128, 128, 128)';
+dc.fillRect(0, 0, DISP_SIZE, DISP_SIZE);
+
+// --- Shaders ---
+const VERT = `
+attribute vec2 a_position;
+varying vec2 v_uv;
+void main() {
+  v_uv = a_position * 0.5 + 0.5;
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}`;
+
+const FRAG = `
+precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_marble;
+uniform sampler2D u_disp;
+uniform float u_strength;
+uniform float u_time;
+
+void main(){
+  vec2 uv = v_uv;
+
+  // Ambient flowing wave distortion (from iterative sin/cos technique)
+  float t = u_time * 0.12;
+  vec2 w = uv * 2.5;
+  for(float i = 1.0; i < 5.0; i++){
+    w.x += 0.4 / i * cos(i * 2.5 * w.y + t);
+    w.y += 0.4 / i * cos(i * 1.5 * w.x + t * 0.8);
+  }
+  vec2 waveOffset = (w - uv * 2.5) * 0.008;
+  uv += waveOffset;
+
+  // Displacement from mouse drag
+  // Negate so pixels follow the drag direction (not oppose it)
+  vec4 d = texture2D(u_disp, v_uv);
+  vec2 offset = -(d.rg - 0.5) * 2.0 * u_strength;
+  uv += offset;
+
+  uv = clamp(uv, 0.0, 1.0);
+  gl_FragColor = texture2D(u_marble, uv);
+}`;
+
+// --- Compile & link ---
+function makeShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s));
+    return null;
+  }
+  return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, makeShader(gl.VERTEX_SHADER, VERT));
+gl.attachShader(prog, makeShader(gl.FRAGMENT_SHADER, FRAG));
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS))
+  console.error(gl.getProgramInfoLog(prog));
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
+
+const posLoc = gl.getAttribLocation(prog, 'a_position');
+const marbleLoc = gl.getUniformLocation(prog, 'u_marble');
+const dispLoc = gl.getUniformLocation(prog, 'u_disp');
+const strengthLoc = gl.getUniformLocation(prog, 'u_strength');
+const timeLoc = gl.getUniformLocation(prog, 'u_time');
+
+gl.useProgram(prog);
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+// --- Marble texture (unit 0) ---
+const marbleTex = gl.createTexture();
+const marbleImg = new Image();
+marbleImg.onload = () => {
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, marbleTex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, marbleImg);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.uniform1i(marbleLoc, 0);
+  requestAnimationFrame(frame);
+};
+marbleImg.onerror = () => {
+  document.body.innerHTML = '<p style="color:white;text-align:center;margin-top:40vh;font:20px sans-serif">Texture failed to load</p>';
+};
+marbleImg.src = '/illustrations/marbled-endpaper.jpg';
+
+// --- Displacement texture (unit 1) ---
+const dispTex = gl.createTexture();
+function uploadDisp() {
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, dispTex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, dispCanvas);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+}
+uploadDisp();
+gl.uniform1i(dispLoc, 1);
+
+// --- Mouse tracking ---
+let mx = -1, my = -1, pmx = -1, pmy = -1;
+let mouseActive = false;
+
+canvas.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  pmx = mx; pmy = my;
+  mx = (e.clientX - r.left) / r.width;
+  my = (e.clientY - r.top) / r.height;
+  mouseActive = true;
+});
+canvas.addEventListener('mouseleave', () => { mouseActive = false; });
+
+// --- Paint displacement ---
+function paintDisplacement() {
+  // Slow decay toward neutral gray — strokes settle over ~20s
+  dc.fillStyle = 'rgba(128, 128, 128, 0.004)';
+  dc.fillRect(0, 0, DISP_SIZE, DISP_SIZE);
+
+  if (!mouseActive || pmx < 0) return;
+
+  // Velocity in screen-space (0-1 range)
+  const vx = mx - pmx;
+  const vy = my - pmy;
+  const speed = Math.sqrt(vx * vx + vy * vy);
+  if (speed < 0.0008) return;
+
+  const nvx = vx / speed;
+  const nvy = vy / speed;
+  const intensity = Math.min(speed * 15, 1.0);
+
+  // Encode drag direction as color offset from 128
+  // X: same direction in screen and UV space
+  // Y: negate because screen Y is down but UV Y is up
+  const r = Math.round(128 + nvx * 127 * intensity);
+  const g = Math.round(128 - nvy * 127 * intensity);
+
+  // Position on displacement canvas (top-left origin, matches screen)
+  const cx = mx * DISP_SIZE;
+  const cy = my * DISP_SIZE;
+  const pcx = pmx * DISP_SIZE;
+  const pcy = pmy * DISP_SIZE;
+  const brushRadius = 25 + speed * 600;
+
+  // Soft radial brush at current position
+  const grad = dc.createRadialGradient(cx, cy, 0, cx, cy, brushRadius);
+  grad.addColorStop(0, `rgba(${r}, ${g}, 128, 0.8)`);
+  grad.addColorStop(0.3, `rgba(${r}, ${g}, 128, 0.4)`);
+  grad.addColorStop(0.7, `rgba(${r}, ${g}, 128, 0.1)`);
+  grad.addColorStop(1, 'rgba(128, 128, 128, 0)');
+  dc.fillStyle = grad;
+  dc.beginPath();
+  dc.arc(cx, cy, brushRadius, 0, Math.PI * 2);
+  dc.fill();
+
+  // Connecting stroke for smooth drag trails
+  dc.strokeStyle = `rgba(${r}, ${g}, 128, 0.55)`;
+  dc.lineWidth = brushRadius * 0.5;
+  dc.lineCap = 'round';
+  dc.beginPath();
+  dc.moveTo(pcx, pcy);
+  dc.lineTo(cx, cy);
+  dc.stroke();
+
+  // Wake effect: lighter displacement spreading sideways from the stroke
+  const perpX = -nvy;
+  const perpY = nvx;
+  const wakeR = brushRadius * 1.5;
+  for (let side = -1; side <= 1; side += 2) {
+    const wx = cx + perpX * brushRadius * 0.4 * side;
+    const wy = cy + perpY * brushRadius * 0.4 * side;
+    const wakeGrad = dc.createRadialGradient(wx, wy, 0, wx, wy, wakeR);
+    const wr = Math.round(128 + nvx * 50 * intensity);
+    const wg = Math.round(128 - nvy * 50 * intensity);
+    wakeGrad.addColorStop(0, `rgba(${wr}, ${wg}, 128, 0.15)`);
+    wakeGrad.addColorStop(1, 'rgba(128, 128, 128, 0)');
+    dc.fillStyle = wakeGrad;
+    dc.beginPath();
+    dc.arc(wx, wy, wakeR, 0, Math.PI * 2);
+    dc.fill();
+  }
+}
+
+// --- Pause / Reset ---
+let paused = false;
+let elapsed = 0;
+let lastFrame = performance.now();
+
+document.getElementById('pause-btn').addEventListener('click', function() {
+  paused = !paused;
+  this.textContent = paused ? 'Play' : 'Pause';
+  if (!paused) lastFrame = performance.now();
+});
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  dc.fillStyle = 'rgb(128, 128, 128)';
+  dc.fillRect(0, 0, DISP_SIZE, DISP_SIZE);
+});
+
+// --- Render loop ---
+function frame() {
+  const now = performance.now();
+  if (!paused) {
+    elapsed += (now - lastFrame) / 1000;
+    paintDisplacement();
+  }
+  lastFrame = now;
+
+  const dpr = Math.min(devicePixelRatio, 2);
+  const w = canvas.clientWidth * dpr;
+  const h = canvas.clientHeight * dpr;
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
+  gl.viewport(0, 0, canvas.width, canvas.height);
+
+  uploadDisp();
+  gl.uniform1f(strengthLoc, 0.4);
+  gl.uniform1f(timeLoc, elapsed);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  requestAnimationFrame(frame);
+}
+</script>
+</body>
+</html>
