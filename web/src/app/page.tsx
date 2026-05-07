@@ -74,22 +74,22 @@ export default function Home() {
           ) : (
             <div className="float-in float-in-delay-1">
               <div className="mb-8">
-                <Link
-                  href="/login"
-                  className="inline-block px-6 py-2.5 rounded-xl text-[13px] font-semibold text-white transition-all duration-200 hover:brightness-110 hover:shadow-lg mb-5"
-                  style={{ background: "var(--manuscript-red)", fontFamily: "var(--font-display)" }}
-                >
-                  Join BookBuds →
-                </Link>
                 <h2
                   className="text-xl sm:text-2xl"
                   style={{ fontFamily: "var(--font-display)", color: "var(--gray-900)" }}
                 >
                   On the Shelves of Buds in Your Area
                 </h2>
-                <p className="text-[13px] mt-1.5" style={{ color: "var(--gray-400)" }}>
+                <p className="text-[13px] mt-1.5 mb-5" style={{ color: "var(--gray-400)" }}>
                   See what people nearby are sharing
                 </p>
+                <Link
+                  href="/login"
+                  className="inline-block px-6 py-2.5 rounded-xl text-[13px] font-semibold text-white transition-all duration-200 hover:brightness-110 hover:shadow-lg"
+                  style={{ background: "var(--manuscript-red)", fontFamily: "var(--font-display)" }}
+                >
+                  Join BookBuds →
+                </Link>
               </div>
               <FriendBookCarousel />
             </div>
