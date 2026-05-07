@@ -1,4 +1,3 @@
-import uuid as _uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -122,7 +121,7 @@ def list_incoming_checkouts_rich(
 
 @router.post("/books/{book_id}/checkout", response_model=CheckoutResponse, status_code=status.HTTP_201_CREATED)
 def request_checkout(
-    book_id: _uuid.UUID,
+    book_id: str,
     payload: CheckoutCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -170,7 +169,7 @@ def request_checkout(
 
 @router.patch("/checkouts/{checkout_id}", response_model=CheckoutResponse)
 def update_checkout(
-    checkout_id: _uuid.UUID,
+    checkout_id: str,
     payload: CheckoutUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
