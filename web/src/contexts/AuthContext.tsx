@@ -16,6 +16,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, displayName: string, password: string) => Promise<void>;
   logout: () => void;
+  updateUser: (fields: Partial<Pick<AuthUser, "avatarUrl" | "displayName">>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -103,8 +104,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const updateUser = useCallback(async (fields: Partial<Pick<AuthUser, "avatarUrl" | "displayName">>) => {
+    const savedToken = localStorage.getItem(TOKEN_KEY);
+    if (!savedToken) return;
+    const body: Record<string, string> = {};
+    if (fields.avatarUrl !== undefined) body.avatar_url = fields.avatarUrl;
+    if (fields.displayName !== undefined) body.display_name = fields.displayName;
+    const res = await fetch(`${API_BASE}/auth/me`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${savedToken}` },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error("Failed to update profile");
+    const data = await res.json();
+    const updated: AuthUser = {
+      id: data.id,
+      email: data.email,
+      displayName: data.display_name,
+      avatarUrl: data.avatar_url,
+    };
+    localStorage.setItem(USER_KEY, JSON.stringify(updated));
+    setUser(updated);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

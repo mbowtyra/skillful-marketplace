@@ -24,14 +24,25 @@ function LogoB() {
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showAddFriend, setShowAddFriend] = useState(false);
-  const [avatar, setAvatar] = useState<Avatar>(getAvatar("woman-1"));
+  const [avatar, setAvatar] = useState<Avatar>(() => {
+    const match = user?.avatarUrl ? AVATARS.find((a) => a.imagePath === user.avatarUrl) : null;
+    return match ?? AVATARS[0];
+  });
   const profileRef = useRef<HTMLDivElement>(null);
+
+  // Sync avatar when user changes (e.g. after login)
+  useEffect(() => {
+    if (user?.avatarUrl) {
+      const match = AVATARS.find((a) => a.imagePath === user.avatarUrl);
+      if (match) setAvatar(match);
+    }
+  }, [user?.avatarUrl]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -242,7 +253,10 @@ export default function Navbar() {
       {showAvatarPicker && (
         <AvatarPicker
           currentAvatarId={avatar.id}
-          onSelect={setAvatar}
+          onSelect={(newAvatar) => {
+            setAvatar(newAvatar);
+            updateUser({ avatarUrl: newAvatar.imagePath }).catch(console.error);
+          }}
           onClose={() => setShowAvatarPicker(false)}
         />
       )}
