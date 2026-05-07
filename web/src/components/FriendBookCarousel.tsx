@@ -24,10 +24,7 @@ export default function FriendBookCarousel() {
       ]);
       if (user) {
         const friendIds = new Set(friendList.map((f) => f.id));
-        // Show friends' books; if no friends yet show everyone (better empty-state UX)
-        const visible = friendIds.size > 0
-          ? all.filter((b) => friendIds.has(b.owner.id))
-          : all.filter((b) => b.owner.id !== user.id);
+        const visible = all.filter((b) => friendIds.has(b.owner.id));
         setBooks(visible);
       } else {
         setBooks(all);
