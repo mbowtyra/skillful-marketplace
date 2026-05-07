@@ -1,5 +1,4 @@
 import os
-import uuid as _uuid
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
@@ -56,7 +55,7 @@ MAX_COVER_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
 
 @router.post("/{book_id}/cover", response_model=BookResponse)
 async def upload_cover(
-    book_id: _uuid.UUID,
+    book_id: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -94,7 +93,7 @@ async def upload_cover(
 
 
 @router.get("/{book_id}", response_model=BookDetailResponse)
-def get_book(book_id: _uuid.UUID, db: Session = Depends(get_db)):
+def get_book(book_id: str, db: Session = Depends(get_db)):
     book = (
         db.query(Book)
         .options(joinedload(Book.owner), joinedload(Book.checkouts))
@@ -108,7 +107,7 @@ def get_book(book_id: _uuid.UUID, db: Session = Depends(get_db)):
 
 @router.patch("/{book_id}", response_model=BookResponse)
 def update_book(
-    book_id: _uuid.UUID,
+    book_id: str,
     payload: BookUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -129,7 +128,7 @@ def update_book(
 
 @router.delete("/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_book(
-    book_id: _uuid.UUID,
+    book_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):

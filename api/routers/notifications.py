@@ -1,4 +1,3 @@
-import uuid as _uuid
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -42,7 +41,7 @@ def unread_count(
 
 @router.patch("/{notification_id}/read", response_model=NotificationResponse)
 def mark_read(
-    notification_id: _uuid.UUID,
+    notification_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
