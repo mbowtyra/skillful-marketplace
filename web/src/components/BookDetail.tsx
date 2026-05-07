@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import type { Book } from "@/lib/mock-data";
 import Book3D from "./Book3D";
 import LibraryCard from "./LibraryCard";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function BookDetail({
   book,
@@ -13,6 +15,8 @@ export default function BookDetail({
   book: Book;
   onClose: () => void;
 }) {
+  const { user } = useAuth();
+  const router = useRouter();
   const [showCheckout, setShowCheckout] = useState(false);
   const [following, setFollowing] = useState(false);
 
@@ -116,11 +120,41 @@ export default function BookDetail({
             </p>
           )}
 
-          {/* Library Card */}
-          <LibraryCard book={book} showCheckout={showCheckout} setShowCheckout={setShowCheckout} />
+          {/* Library Card — logged-in only */}
+          {user ? (
+            <LibraryCard book={book} showCheckout={showCheckout} setShowCheckout={setShowCheckout} />
+          ) : (
+            <div
+              className="rounded-xl p-5 text-center"
+              style={{ background: "rgba(124, 45, 62, 0.04)", border: "1.5px dashed rgba(124, 45, 62, 0.2)" }}
+            >
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3"
+                style={{ background: "rgba(124, 45, 62, 0.08)" }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--burgundy)" strokeWidth="2">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                </svg>
+              </div>
+              <p className="text-[14px] font-semibold mb-1" style={{ fontFamily: "var(--font-display)", color: "var(--gray-900)" }}>
+                Want to borrow this book?
+              </p>
+              <p className="text-[12px] mb-4" style={{ color: "var(--gray-500)" }}>
+                Create a free account to start borrowing books from people in your community.
+              </p>
+              <button
+                onClick={() => { onClose(); router.push("/login?tab=register"); }}
+                className="px-6 py-2.5 rounded-xl text-[13px] font-semibold text-white transition-all duration-200 hover:brightness-110 hover:shadow-md"
+                style={{ background: "var(--burgundy)" }}
+              >
+                Create a Free Account
+              </button>
+            </div>
+          )}
 
-          {/* Follow banner for unavailable books */}
-          {!book.available && (
+          {/* Follow banner for unavailable books — logged-in only */}
+          {user && !book.available && (
             <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 mt-6 mb-2">
               <div className="flex items-start gap-3">
                 <div
@@ -147,7 +181,7 @@ export default function BookDetail({
 
           {/* Actions */}
           <div className="flex gap-3 mt-5">
-            {book.available && !showCheckout && (
+            {user && book.available && !showCheckout && (
               <button
                 onClick={() => setShowCheckout(true)}
                 className="flex-1 py-3 rounded-xl text-[13px] font-semibold text-white transition-all duration-200 hover:shadow-md hover:scale-[1.01] active:scale-[0.98]"
@@ -156,7 +190,7 @@ export default function BookDetail({
                 Borrow This Book
               </button>
             )}
-            {!book.available && (
+            {user && !book.available && (
               <button
                 onClick={() => setFollowing(!following)}
                 className="flex-1 py-3 rounded-xl text-[13px] font-semibold transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
